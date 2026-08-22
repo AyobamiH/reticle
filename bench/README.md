@@ -81,6 +81,8 @@ artifacts/                charts + diagrams (SVG + PNG) + screens/ (real PNGs + 
 
 The fast path: `pnpm bench` (the replay pass) and `pnpm bench --full` (+ observation-cost pass) now **boot the fixtures themselves** — the bench-app on `:4312` and the api on `:8787` — health-check them, and tear them down on exit. Pass `--no-boot` to use fixtures you already have running, and override ports with `BENCH_DEMO_PORT` / `BENCH_API_PORT` / `BENCH_RETICLE_PORT` (default 4460 — the same value apps/bench-app/vite.config.ts defaults to; see bench/harness/ports.mjs for why they must agree). On a slow machine raise `BENCH_FIXTURE_READY_MS` (fixture boot) or `BENCH_RETICLE_READY_MS` (driven-browser connect).
 
+> **Worktree safety:** The regression injector temporarily rewrites four tracked fixture files under `apps/bench-app/src` and restores them with `git checkout --`. It refuses to start if any of those files already has staged or unstaged changes, so commit or stash them first. The check happens before the first injection; do not edit those files during a measured run.
+
 To run the fixtures + harness scripts by hand instead (e.g. for the manual observation/agent-loop steps):
 
 ```bash

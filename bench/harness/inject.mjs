@@ -1,11 +1,11 @@
 // Deterministic regression injector. Each regression is a set of exact string
 // replacements in tracked source files; revert() restores via `git checkout --`.
-// Only touches the bench fixture app's src (clean files); never the marketing changes.
+// Refuses to start a mutation session when any target file already has local changes.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 // One source of truth for the fixture app the benches boot (bench-all.mjs boots @reticlehq/bench-app).
 // Keep this in sync with bench-all's fixture so the injector and the runner never target different
@@ -123,6 +123,49 @@ const REGRESSIONS = {
   },
 };
 
+const INJECTION_FILES = [...new Set(Object.values(REGRESSIONS).flatMap((r) => r.files))];
+let mutationSessionStarted = false;
+
+function changedTrackedFiles(root, pathspecs, extraArgs) {
+  const output = execFileSync(
+    'git',
+    ['-C', root, 'diff', ...extraArgs, '--name-only', '--', ...pathspecs],
+    { encoding: 'utf8' },
+  );
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** Return tracked fixture files that have staged or unstaged changes. */
+export function findDirtyInjectionFiles(root, files) {
+  if (0 === files.length) return [];
+  const pathspecs = files.map((file) => relative(root, file).replace(/\\/g, '/'));
+  return [
+    ...new Set([
+      ...changedTrackedFiles(root, pathspecs, []),
+      ...changedTrackedFiles(root, pathspecs, ['--cached']),
+    ]),
+  ].sort();
+}
+
+/** Refuse before benchmark mutation can overwrite a contributor's fixture edits. */
+export function assertInjectionFilesClean(root, files) {
+  const dirty = findDirtyInjectionFiles(root, files);
+  if (0 === dirty.length) return;
+  throw new Error(
+    `benchmark injector refused dirty fixture files: ${dirty.join(', ')}. ` +
+      'Commit or stash them before running the benchmark.',
+  );
+}
+
+function beginMutationSession() {
+  if (mutationSessionStarted) return;
+  assertInjectionFilesClean(ROOT, INJECTION_FILES);
+  mutationSessionStarted = true;
+}
+
 // The unique marker string each regression injects. A bug is FIXED iff its marker is gone from its
 // files — sound for any fix (revert or rewrite), since removing the buggy code is necessary to fix it.
 // Used by the fix-loop ablation's deterministic re-check (bench/fix-loop).
@@ -156,6 +199,7 @@ export function filesOf(id) {
 export function inject(id) {
   const r = REGRESSIONS[id];
   if (!r) throw new Error(`unknown regression ${id}`);
+  beginMutationSession();
   r.apply();
   return r.files;
 }
@@ -163,13 +207,14 @@ export function inject(id) {
 export function revert(id) {
   const r = REGRESSIONS[id];
   if (!r) throw new Error(`unknown regression ${id}`);
+  if (!mutationSessionStarted) return;
   for (const f of r.files)
     execFileSync('git', ['-C', ROOT, 'checkout', '--', f], { stdio: 'ignore' });
 }
 
-export function revertAll() {
-  const files = [...new Set(Object.values(REGRESSIONS).flatMap((r) => r.files))];
-  for (const f of files) {
+export function revertAll(force = false) {
+  if (!mutationSessionStarted && !force) return;
+  for (const f of INJECTION_FILES) {
     try {
       execFileSync('git', ['-C', ROOT, 'checkout', '--', f], { stdio: 'ignore' });
     } catch {
@@ -193,6 +238,7 @@ export function revertAll() {
  * measuring anything, and it must say so LOUDLY rather than average itself over the survivors.
  */
 export function verifyAnchors() {
+  beginMutationSession();
   const broken = [];
   for (const id of Object.keys(REGRESSIONS)) {
     try {
@@ -217,7 +263,8 @@ if (process.argv[2] === '--verify-anchors') {
   process.exit(0 === broken.length ? 0 : 1);
 }
 if (process.argv[2] === '--revert-all') {
-  revertAll();
+  // Explicit recovery command: unlike benchmark execution, this is intentionally destructive.
+  revertAll(true);
   console.log('reverted all');
 }
 if (process.argv[2] === '--list') {
