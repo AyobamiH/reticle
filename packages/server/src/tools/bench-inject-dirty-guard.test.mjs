@@ -75,7 +75,7 @@ describe('benchmark injector dirty-worktree guard', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/refusing to run/i);
-      expect(result.stderr).toContain(DIRTY_TARGET);
+      expect(result.stderr.replaceAll('\\', '/')).toContain(DIRTY_TARGET);
       expect(readFileSync(target, 'utf8')).toBe(before);
       expect(git(root, 'diff', '--name-only').trim()).toBe(DIRTY_TARGET);
     });
@@ -92,7 +92,7 @@ describe('benchmark injector dirty-worktree guard', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/refusing to run/i);
-      expect(result.stderr).toContain(DIRTY_TARGET);
+      expect(result.stderr.replaceAll('\\', '/')).toContain(DIRTY_TARGET);
       expect(readFileSync(target, 'utf8')).toBe(before);
       expect(git(root, 'diff', '--cached', '--name-only').trim()).toBe(DIRTY_TARGET);
     });
