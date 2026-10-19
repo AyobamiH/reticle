@@ -566,13 +566,21 @@ function buildStatus(root: ParentNode): SnapshotStatus {
 /** Build the semantic accessibility snapshot of the page or a subtree. */
 export function buildSnapshot(options: SnapshotOptions = {}): SnapshotResult {
   const mode = options.mode ?? SnapshotMode.FULL;
-  const scopeEl =
-    options.scope !== undefined
-      ? (refs.resolve(options.scope) ?? document.querySelector(options.scope))
-      : document.body;
+  const scope = options.scope?.trim();
+  let scopeEl: Element | null = document.body;
+  if (undefined !== scope && '' !== scope) {
+    scopeEl = refs.resolve(scope);
+    if (null === scopeEl) {
+      try {
+        scopeEl = document.querySelector(scope);
+      } catch {
+        // A malformed selector is a missing scope, never a whole-page read.
+      }
+    }
+  }
   // A given-but-missing scope snapshots NOTHING and says so — never a silent whole-page fallback.
-  const scopeMissing = options.scope !== undefined && !(scopeEl instanceof Element);
-  const root = scopeEl instanceof Element ? scopeEl : document.body;
+  const scopeMissing = null === scopeEl;
+  const root = scopeEl ?? document.body;
   const status = buildStatus(root);
 
   if (scopeMissing) {
