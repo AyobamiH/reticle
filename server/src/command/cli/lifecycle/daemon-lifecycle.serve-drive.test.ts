@@ -34,11 +34,28 @@ describe('serve flags on an existing daemon (#1692)', () => {
     await vi.waitFor(() => {
       expect(exit).toHaveBeenCalledWith(1);
       expect(stderr).toHaveBeenCalledWith(expect.stringContaining('reticle drive'));
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(DRIVE_URL));
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`reticle drive '${DRIVE_URL}'`));
     });
     expect(log).toHaveBeenCalledWith(
       'reticle_daemon_start_refused',
       expect.objectContaining({ port: PORT }),
     );
+  });
+
+  it('prints a runnable command with a custom port and the exact URL (#1692)', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    const otherPort = 4499;
+
+    handleServe({ port: otherPort, driveUrl: DRIVE_URL, headless: true, http: false });
+
+    await vi.waitFor(() => {
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(stderr).toHaveBeenCalledWith(
+        expect.stringContaining(`RETICLE_PORT=${String(otherPort)} reticle drive '${DRIVE_URL}'`),
+      );
+    });
   });
 
   it('still attaches without an error when serve has no --drive flag', async () => {

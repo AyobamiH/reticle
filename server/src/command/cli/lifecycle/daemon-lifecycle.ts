@@ -37,10 +37,7 @@ import {
 import { daemonSpawnArgs } from '@/command/cli/daemon-start-options.js';
 import { fetchStatus } from '@/command/daemon/binding/daemon-status-probe.js';
 import { runKill } from '@/command/cli/cli-kill.js';
-
-const DRIVE_ALREADY_RUNNING_NOTE =
-  'a Reticle daemon is already running. `serve --drive` cannot open a tab in it. ' +
-  'Use `reticle drive <url>` instead.';
+import { RETICLE_DEFAULT_PORT } from '@reticlehq/core';
 
 export function handleServe(parsed: {
   port: number;
@@ -95,11 +92,19 @@ async function serveWithHonestExit(parsed: {
       }
     }
     if (undefined !== parsed.driveUrl) {
-      log('reticle_daemon_start_refused', {
-        port: parsed.port,
-        reason: DRIVE_ALREADY_RUNNING_NOTE,
-      });
-      process.stderr.write(`${DRIVE_ALREADY_RUNNING_NOTE}\n`);
+      // `drive` deliberately does not accept --port: use its existing RETICLE_PORT input.
+      // Quote the URL so copying the suggestion preserves its query string.
+      const safeUrlArg = `'${parsed.driveUrl.replace(/'/g, String.raw`'\''`)}'`;
+      const driveCommand = `reticle drive ${safeUrlArg}`;
+      const runnableCommand =
+        RETICLE_DEFAULT_PORT === parsed.port
+          ? driveCommand
+          : `RETICLE_PORT=${String(parsed.port)} ${driveCommand}`;
+      const reason =
+        'a Reticle daemon is already running. `serve --drive` cannot open a tab in it. ' +
+        `Use \`${runnableCommand}\` instead.`;
+      log('reticle_daemon_start_refused', { port: parsed.port, reason });
+      process.stderr.write(`${reason}\n`);
       process.exit(1);
       return;
     }
