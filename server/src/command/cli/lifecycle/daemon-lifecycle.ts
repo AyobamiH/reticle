@@ -38,6 +38,10 @@ import { daemonSpawnArgs } from '@/command/cli/daemon-start-options.js';
 import { fetchStatus } from '@/command/daemon/binding/daemon-status-probe.js';
 import { runKill } from '@/command/cli/cli-kill.js';
 
+const DRIVE_ALREADY_RUNNING_NOTE =
+  'a Reticle daemon is already running. `serve --drive` cannot open a tab in it. ' +
+  'Use `reticle drive <url>` instead.';
+
 export function handleServe(parsed: {
   port: number;
   driveUrl?: string;
@@ -89,6 +93,15 @@ async function serveWithHonestExit(parsed: {
         process.exit(1);
         return;
       }
+    }
+    if (undefined !== parsed.driveUrl) {
+      log('reticle_daemon_start_refused', {
+        port: parsed.port,
+        reason: DRIVE_ALREADY_RUNNING_NOTE,
+      });
+      process.stderr.write(`${DRIVE_ALREADY_RUNNING_NOTE}\n`);
+      process.exit(1);
+      return;
     }
     log('reticle_daemon_already_running', { port: parsed.port });
     return;
