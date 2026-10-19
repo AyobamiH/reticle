@@ -13,6 +13,7 @@
 
 import {
   compareSourceClauses,
+  ElementState,
   isConsequenceKind,
   isPresenceKind,
   PredicateKind,
@@ -60,7 +61,7 @@ function walk(predicate: Predicate, negated = false): PredicateKinds {
 }
 
 /**
- * An element predicate that checks the element's CONTENT, not merely that it is there.
+ * An element predicate that checks its content or state, not merely that it is there.
  *
  * The presence nudge exists because "a locator healed to the wrong element, or a stale render, can
  * satisfy this while the feature is broken". That is exactly true of `{ element, role, name }` and
@@ -74,7 +75,14 @@ function walk(predicate: Predicate, negated = false): PredicateKinds {
  */
 function assertsElementContent(predicate: Predicate): boolean {
   if (predicate.kind !== PredicateKind.ELEMENT) return false;
-  return predicate.query?.value !== undefined || predicate.query?.text !== undefined;
+  return (
+    predicate.query?.value !== undefined ||
+    predicate.query?.text !== undefined ||
+    (predicate.state !== undefined &&
+      predicate.state !== ElementState.PRESENT &&
+      predicate.state !== ElementState.VISIBLE &&
+      predicate.state !== ElementState.HIDDEN)
+  );
 }
 
 /**

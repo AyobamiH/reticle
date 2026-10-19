@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ElementState } from '@reticlehq/core';
 import {
   isPresenceOnlyAssertion,
   assertsDerivedIpcStatus,
@@ -37,6 +38,42 @@ describe('isPresenceOnlyAssertion', () => {
     expect(
       isPresenceOnlyAssertion({ kind: 'element', query: { role: 'status', text: 'Saved' } }),
     ).toBe(false);
+  });
+
+  it.each([
+    ElementState.FOCUSED,
+    ElementState.CHECKED,
+    ElementState.EXPANDED,
+    ElementState.PRESSED,
+    ElementState.DISABLED,
+    ElementState.ENABLED,
+    ElementState.IN_VIEWPORT,
+  ])('does not advise presence-only for element state %s (#1686)', (state) => {
+    const predicate: Predicate = {
+      kind: 'element',
+      query: { role: 'button', name: 'Save' },
+      state,
+    };
+    expect(isPresenceOnlyAssertion(predicate)).toBe(false);
+    // The advice improves, but the verdict must not overstate the proof.
+    expect(gradeOfPredicate(predicate)).toBe(HonestyGrade.PRESENCE);
+  });
+
+  it.each([ElementState.PRESENT, ElementState.VISIBLE, ElementState.HIDDEN])(
+    'still advises presence-only for element state %s (#1686)',
+    (state) => {
+      const predicate: Predicate = { kind: 'element', query: { role: 'button' }, state };
+      expect(isPresenceOnlyAssertion(predicate)).toBe(true);
+      expect(gradeOfPredicate(predicate)).toBe(HonestyGrade.PRESENCE);
+    },
+  );
+
+  it('still advises presence-only for a negated state check (#1686)', () => {
+    const predicate: Predicate = {
+      kind: 'not',
+      predicate: { kind: 'element', query: { role: 'button' }, state: ElementState.FOCUSED },
+    };
+    expect(isPresenceOnlyAssertion(predicate)).toBe(true);
   });
 
   it('still flags a NEGATED content check, because absence is satisfied by a wrong locator', () => {
