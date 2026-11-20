@@ -16,7 +16,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { findWorkspaceApps, isWebApp, workspaceParents } from './workspace-apps.js';
+import { findAppsBelow, findWorkspaceApps, isWebApp, workspaceParents } from './workspace-apps.js';
+import { memoryIo } from '../memory-io.test-helpers.js';
 
 describe('where a workspace keeps its packages', () => {
   it('reads pnpm-workspace.yaml, which is the authoritative answer', () => {
@@ -150,5 +151,70 @@ describe('an app is a directory that can be served', () => {
     };
     const io = { exists: (p: string) => p in files, readFile: (p: string) => files[p] ?? null };
     expect(isWebApp('apps/web', io)).toBe(true);
+  });
+});
+
+describe('web app selection must not treat build tooling as a page', () => {
+  it('does not consider a Vite library a web app just because it has a config and dev script', () => {
+    const io = memoryIo({
+      'package.json': JSON.stringify({ name: 'backend', workspaces: ['tools/*'] }),
+      'tools/builder/package.json': JSON.stringify({
+        name: 'internal-builder',
+        scripts: { dev: 'vite build --watch', build: 'vite build' },
+        devDependencies: { vite: '^8' },
+      }),
+      'tools/builder/vite.config.ts': 'export default { build: { lib: {} } };',
+      'tools/builder/src/index.ts': 'export const helper = true;',
+    });
+    expect(isWebApp('tools/builder', io)).toBe(false);
+    expect(findWorkspaceApps(io)).toEqual([]);
+    expect(findAppsBelow(io)).toEqual([]);
+  });
+
+  it('does not choose a backend that merely has a dev script as a web app', () => {
+    const io = memoryIo({
+      'package.json': JSON.stringify({ name: 'backend', workspaces: ['tools/*'] }),
+      'tools/api/package.json': JSON.stringify({
+        name: 'api',
+        scripts: { dev: 'node server.js' },
+        dependencies: { express: '^5' },
+      }),
+    });
+    expect(findWorkspaceApps(io)).toEqual([]);
+    expect(findAppsBelow(io)).toEqual([]);
+  });
+
+  it('selects a real Vite web app over a sibling library or backend', () => {
+    const io = memoryIo({
+      'package.json': JSON.stringify({ name: 'mono', workspaces: ['apps/*'] }),
+      'apps/library/package.json': JSON.stringify({
+        name: 'library',
+        scripts: { build: 'vite build' },
+        devDependencies: { vite: '^8' },
+      }),
+      'apps/library/vite.config.ts': 'export default { build: { lib: {} } };',
+      'apps/backend/package.json': JSON.stringify({
+        scripts: { dev: 'node server.js' },
+        dependencies: { express: '^5' },
+      }),
+      'apps/web/package.json': JSON.stringify({
+        scripts: { dev: 'vite' },
+        devDependencies: { vite: '^8' },
+      }),
+      'apps/web/index.html': '<div id="app"></div>',
+      'apps/web/vite.config.ts': 'export default {}',
+    });
+    expect(findWorkspaceApps(io)).toEqual(['apps/web']);
+  });
+
+  it('keeps framework-rendered apps without a root index.html discoverable', () => {
+    const io = memoryIo({
+      'package.json': JSON.stringify({ name: 'mono', workspaces: ['apps/*'] }),
+      'apps/dashboard/package.json': JSON.stringify({
+        scripts: { dev: 'next dev' },
+        dependencies: { next: '^16', react: '^19' },
+      }),
+    });
+    expect(findWorkspaceApps(io)).toEqual(['apps/dashboard']);
   });
 });
