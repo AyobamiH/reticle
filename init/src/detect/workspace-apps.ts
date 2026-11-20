@@ -1,7 +1,7 @@
 import { dirname, join, relative, sep } from 'node:path';
 import type { InitIo } from '@/run-types.js';
 import { DEV_SCRIPT_NAMES } from './dev-script.js';
-import { detect, Framework, UiLibrary } from './detect.js';
+import { detect, Framework, FRAMEWORK_SIGNALS } from './detect.js';
 
 /**
  * The file names that say what a directory IS, shared by everything that has to ask.
@@ -123,7 +123,10 @@ export function workspaceParents(sources: WorkspaceSources): string[] {
  * A general-purpose question about a repository's shape, so it lives next to `workspaceParents`,
  * which answers the other half of it.
  */
-/** Deps that mark a directory as a runnable web app even when it has no bundler config file. */
+/**
+ * Potential framework signals. They do not by themselves prove this package serves a web page:
+ * Vite is routinely used to bundle libraries in a backend or tooling workspace.
+ */
 export const APP_DEPS = ['next', 'vite', 'vite-plus', 'electron-vite'] as const;
 
 function hasDevScript(pkgRaw: string): boolean {
@@ -167,19 +170,26 @@ export function parsedManifest(pkgRaw: string): Record<string, unknown> {
 }
 
 /**
- * Whether a package with a dev script has a page. Asked of the same detector the plan uses, so
- * "is this the app" and "which framework is it" cannot disagree about what a UI dependency is.
+ * A web page must be evidenced, not inferred from generic build tooling.
+ * Vite can bundle a library without serving HTML; a dev/start script can start
+ * an API without a browser page. Frameworks that own their HTML (Next, Astro,
+ * Nuxt, etc.) are different: their framework signal is enough to identify a
+ * renderable app even without an index.html in this directory.
  */
 function hasPage(dir: string, pkgRaw: string, io: Pick<InitIo, 'exists'>): boolean {
-  const found = detect({
-    pkg: parsedManifest(pkgRaw),
-    configFiles: new Set(),
-    lockfiles: new Set(),
-  });
-  if (Framework.HTML !== found.framework || UiLibrary.UNKNOWN !== found.uiLibrary) {
+  if (OWN_PAGES.some((page) => io.exists(`${dir}/${page}`))) {
     return true;
   }
-  return OWN_PAGES.some((page) => io.exists(`${dir}/${page}`));
+  const configs = new Set(
+    Object.values(FRAMEWORK_SIGNALS).flatMap((signal) => signal.configs),
+  );
+  const present = new Set([...configs].filter((file) => io.exists(`${dir}/${file}`)));
+  const found = detect({
+    pkg: parsedManifest(pkgRaw),
+    configFiles: present,
+    lockfiles: new Set(),
+  });
+  return found.framework !== Framework.VITE && found.framework !== Framework.HTML;
 }
 
 function appSignal(dir: string, io: Pick<InitIo, 'exists' | 'readFile'>): AppSignal {
@@ -187,31 +197,14 @@ function appSignal(dir: string, io: Pick<InitIo, 'exists' | 'readFile'>): AppSig
   if (null === pkgRaw) {
     return AppSignal.NONE;
   }
-  const configs = [
-    ...VITE_CONFIG_CANDIDATES,
-    ...ELECTRON_VITE_CONFIG_CANDIDATES,
-    ...NEXT_CONFIG_CANDIDATES,
-  ];
-  if (configs.some((c) => io.exists(`${dir}/${c}`))) {
+  if (hasPage(dir, pkgRaw, io)) {
     return AppSignal.UI;
   }
-  // `next.config` is optional in Next, so the dependency list is the other half of the signal.
-  if (APP_DEPS.some((d) => pkgRaw.includes(`"${d}"`))) {
-    return AppSignal.UI;
-  }
-  // And the honest third: an app somebody can SERVE. Asking only for a bundler missed every app
-  // built on anything else — Remix, Astro, a plain node server — and in a monorepo missing it means
-  // init never redirects, wires the ROOT, and reports ✓ for files nothing compiles.
-  //
-  // A monorepo root has no dev script by design, and a package that can only be BUILT is not the app
-  // somebody is working in, so this stays a filter rather than matching every directory.
-  if (!hasDevScript(pkgRaw)) {
-    return AppSignal.NONE;
-  }
-  // But a dev script alone is also what an API package has, and counting it made every workspace
-  // with a backend beside its web app "ambiguous" (#1148): the root refused, and its hint named the
-  // backend. A package with a dev script and no page is only a candidate when nothing else is.
-  return hasPage(dir, pkgRaw, io) ? AppSignal.UI : AppSignal.SERVED;
+  // A dev script alone proves only a runnable process, not a web page. Keep
+  // the distinction for diagnosis, but do not auto-select this directory:
+  // an API, Vite library watcher or Python project's JS tool must not be
+  // modified before a person identifies an actual app.
+  return hasDevScript(pkgRaw) ? AppSignal.SERVED : AppSignal.NONE;
 }
 
 /**
@@ -255,14 +248,9 @@ export function findWorkspaceApps(io: Pick<InitIo, 'exists' | 'readFile' | 'list
   });
   // A declared parent can itself BE the app (`workspaces: ["web"]`), so check both the directory and
   // its children rather than assuming one level of nesting.
-  const served: string[] = [];
   const consider = (dir: string): void => {
-    const signal = appSignal(dir, io);
-    if (AppSignal.UI === signal) {
+    if (AppSignal.UI === appSignal(dir, io)) {
       found.push(dir);
-    }
-    if (AppSignal.SERVED === signal) {
-      served.push(dir);
     }
   };
   for (const parent of parents) {
@@ -271,9 +259,9 @@ export function findWorkspaceApps(io: Pick<InitIo, 'exists' | 'readFile' | 'list
       consider(`${parent}/${name}`);
     }
   }
-  // A backend is still the app when it is the only thing that can be served — a server-rendered
-  // app is exactly that — so it is demoted, never dropped.
-  return [...new Set(found.length > 0 ? found : served)];
+  // Never promote a backend or library merely because no UI app was found.
+  // The caller must refuse or ask for --app before performing any effects.
+  return [...new Set(found)];
 }
 
 /** Folders the search for an app never enters: dependencies, output, and a home folder's own. */
