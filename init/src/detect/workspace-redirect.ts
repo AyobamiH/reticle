@@ -219,6 +219,19 @@ export function redirectToWorkspaceApp(
     if (1 === below.length && below[0] !== undefined)
       return enterApp(options, io, below[0], 'No app in this directory — wiring', runInit);
     if (1 < below.length) return listApps(io, BELOW_HEADER, below);
+
+    // A Python or other non-JS repository may contain a JS build tool. That
+    // tool is not the missing web frontend. Name what was found and refuse
+    // before the no-package fallback writes root config or pairing files.
+    const packages = workspacePackageDirs(io).filter((dir) =>
+      io.exists(`${dir}/${PACKAGE_JSON}`),
+    );
+    if (0 < packages.length) {
+      io.print('No web app verified below this directory. JavaScript package(s) found:');
+      printAppCommands(io, packages);
+      io.print('Nothing was changed. Choose an actual web app with --app.');
+      return { ok: false, applied: 0, manual: packages.length, listedAppsBelow: true };
+    }
   }
   const target = chosen.app ?? (1 === apps.length ? apps[0] : undefined);
   if (target === undefined) {
