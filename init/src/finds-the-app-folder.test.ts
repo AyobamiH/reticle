@@ -174,9 +174,15 @@ describe('init finds the app below where it was run', () => {
         workspaces: ['apps/*'],
         devDependencies: { vite: '^8' },
       }),
-      'apps/a/package.json': JSON.stringify({ scripts: { dev: 'vite' }, devDependencies: { vite: '^8' } }),
+      'apps/a/package.json': JSON.stringify({
+        scripts: { dev: 'vite' },
+        devDependencies: { vite: '^8' },
+      }),
       'apps/a/index.html': '<h1>A</h1>',
-      'apps/b/package.json': JSON.stringify({ scripts: { dev: 'vite' }, devDependencies: { vite: '^8' } }),
+      'apps/b/package.json': JSON.stringify({
+        scripts: { dev: 'vite' },
+        devDependencies: { vite: '^8' },
+      }),
       'apps/b/index.html': '<h1>B</h1>',
     });
     const result = runInit(OPTS, io);
@@ -185,5 +191,4 @@ describe('init finds the app below where it was run', () => {
     expect(io.lines.join('\n')).toContain('reticle init --app apps/b');
     expect(Object.keys(io.written)).toEqual([]);
   });
-
 });
