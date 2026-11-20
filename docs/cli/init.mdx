@@ -96,15 +96,7 @@ With `--no-mcp`, the whole MCP and rules group collapses into one skipped line:
       --no-mcp ... also skips the agent rule files (CLAUDE.md / AGENTS.md / .cursor) and the /reticle command
 ```
 
-A `package.json` that declares Vite does not, by itself, prove there is a web page:
-Vite also builds libraries. Likewise, a `dev` or `start` script can run an API or a
-tool rather than a browser UI. When `init` cannot verify a web app in the current
-directory or below it, it **refuses before installing dependencies or writing files**
-and prints the available explicit `--app` choice instead. This also avoids selecting
-a JS build tool inside a Python repository. If your web application serves HTML
-through a custom layout that discovery cannot recognise, explicitly select it
-with `reticle init --app .` from that directory, or `--app path/to/app` from
-a parent directory.
+A `package.json` that declares Vite does not, by itself, prove there is a web page: Vite also builds libraries. Likewise, a `dev` or `start` script can run an API or a tool rather than a browser UI. When `init` cannot verify a web app in the current directory or below it, it **refuses before installing dependencies or writing files** and prints the available explicit `--app` choice instead. This also avoids selecting a JS build tool inside a Python repository. If your web application serves HTML through a custom layout that discovery cannot recognise, explicitly select it with `reticle init --app .` from that directory, or `--app path/to/app` from a parent directory.
 
 Run from a workspace root with several apps, it refuses to guess, prints a command for each one, and exits `1`:
 
