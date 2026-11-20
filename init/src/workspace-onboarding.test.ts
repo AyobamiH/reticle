@@ -29,6 +29,7 @@ const WEB = {
     devDependencies: { vite: '^7' },
   }),
   'apps/web/vite.config.ts': 'export default { plugins: [] };\n',
+  'apps/web/index.html': '<main>Web app</main>',
 };
 const ADMIN = {
   'apps/admin/package.json': JSON.stringify({
