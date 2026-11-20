@@ -180,9 +180,7 @@ function hasPage(dir: string, pkgRaw: string, io: Pick<InitIo, 'exists'>): boole
   if (OWN_PAGES.some((page) => io.exists(`${dir}/${page}`))) {
     return true;
   }
-  const configs = new Set(
-    Object.values(FRAMEWORK_SIGNALS).flatMap((signal) => signal.configs),
-  );
+  const configs = new Set(Object.values(FRAMEWORK_SIGNALS).flatMap((signal) => signal.configs));
   const present = new Set([...configs].filter((file) => io.exists(`${dir}/${file}`)));
   const found = detect({
     pkg: parsedManifest(pkgRaw),
