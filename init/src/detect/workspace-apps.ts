@@ -178,7 +178,9 @@ export function isBuildOnlyVitePackage(
   io: Pick<InitIo, 'exists' | 'readFile'>,
 ): boolean {
   const at = (file: string): string => ('.' === dir ? file : `${dir}/${file}`);
-  if (OWN_PAGES.some((page) => io.exists(at(page)))) return false;
+  if (OWN_PAGES.some((page) => io.exists(at(page)))) {
+    return false;
+  }
   const pkg = parsedManifest(pkgRaw);
   const rawScripts = pkg['scripts'];
   const scripts =
