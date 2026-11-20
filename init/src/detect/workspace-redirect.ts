@@ -167,8 +167,7 @@ export function redirectToWorkspaceApp(
   // Check for apps below before allowing init to mutate that root. A regular
   // Vite app, or a framework that owns its document, retains its normal path.
   const rootPkgRaw = io.readFile(PACKAGE_JSON);
-  const libraryRoot =
-    rootPkgRaw !== null && isBuildOnlyVitePackage('.', rootPkgRaw, io);
+  const libraryRoot = rootPkgRaw !== null && isBuildOnlyVitePackage('.', rootPkgRaw, io);
   const rootHasPage = io.exists(STATIC_PAGE) || io.exists('public/index.html');
   const rootWorkspaces =
     ('object' === typeof pkg &&
