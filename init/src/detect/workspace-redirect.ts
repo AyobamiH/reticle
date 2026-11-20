@@ -15,6 +15,7 @@ import { detectNonJsEcosystem, noPackageJsonMessage } from './non-js-project.js'
 import {
   findAppsBelow,
   findWorkspaceApps,
+  isBuildOnlyVitePackage,
   PACKAGE_JSON,
   workspacePackageDirs,
 } from './workspace-apps.js';
@@ -162,15 +163,25 @@ export function redirectToWorkspaceApp(
     );
     return { ok: false, applied: 0, manual: 1 };
   }
-  // A workspace root can carry Vite only to build a library or to share tooling.
-  // Without a page, Vite alone cannot prove that this directory is a web app.
-  // Frameworks which render their own HTML (Next, Nuxt, Astro, etc.) do not
-  // need a root index.html; keep their normal direct-init path.
-  const rootHasPage =
-    io.exists(STATIC_PAGE) || io.exists('public/index.html') || io.exists('src/index.html');
-  if (here.framework !== Framework.HTML && (here.framework !== Framework.VITE || rootHasPage)) {
-    return null;
-  }
+  // A repo root may have Vite only for its library build or workspace tooling.
+  // Check for apps below before allowing init to mutate that root. A regular
+  // Vite app, or a framework that owns its document, retains its normal path.
+  const rootPkgRaw = io.readFile(PACKAGE_JSON);
+  const libraryRoot =
+    rootPkgRaw !== null && isBuildOnlyVitePackage('.', rootPkgRaw, io);
+  const rootHasPage = io.exists(STATIC_PAGE) || io.exists('public/index.html');
+  const rootWorkspaces =
+    ('object' === typeof pkg &&
+      pkg !== null &&
+      (pkg as { workspaces?: unknown }).workspaces !== undefined) ||
+    io.exists('pnpm-workspace.yaml');
+  const toolWorkspace =
+    here.framework === Framework.VITE &&
+    rootWorkspaces &&
+    !rootHasPage &&
+    devScriptBody(pkg) === undefined;
+  const inspectRoot = libraryRoot || toolWorkspace;
+  if (here.framework !== Framework.HTML && !inspectRoot) return null;
 
   // A root that an earlier `--app` run (or a run inside the app) already pointed at one app has
   // answered the question discovery would ask. Ignoring it made every re-run at the root refuse
@@ -217,9 +228,8 @@ export function redirectToWorkspaceApp(
       return enterApp(options, io, below[0], 'No app in this directory — wiring', runInit);
     if (1 < below.length) return listApps(io, BELOW_HEADER, below);
 
-    // A Python or other non-JS repository may contain a JS build tool. That
-    // tool is not the missing web frontend. Name what was found and refuse
-    // before the no-package fallback writes root config or pairing files.
+    // A non-JS repository with a JS build tool must not fall into the
+    // no-package setup, which writes a project config and pairing token.
     const packages = workspacePackageDirs(io).filter((dir) => io.exists(`${dir}/${PACKAGE_JSON}`));
     if (0 < packages.length) {
       io.print('No web app verified below this directory. JavaScript package(s) found:');
@@ -231,17 +241,15 @@ export function redirectToWorkspaceApp(
   const target = chosen.app ?? (1 === apps.length ? apps[0] : undefined);
   if (target === undefined) {
     if (0 === apps.length) {
-      if (io.exists(PACKAGE_JSON) && !rootHasPage) {
-        // A library or API package is not an app just because it has a
-        // package.json, a Vite config, or a dev script. Refuse before plan/apply.
+      if (inspectRoot) {
         io.print(
-          'No web app could be verified in this directory or below it. Nothing was changed. ' +
-            'Run `reticle init --app <dir>` for the web app, or `reticle init --app .` ' +
-            'if this directory intentionally serves a custom HTML page.',
+          'No web app could be verified here. Nothing was changed. ' +
+            'Use `reticle init --app <dir>` for the app, or `reticle init --app .` ' +
+            'if this directory serves an HTML page.',
         );
         return { ok: false, applied: 0, manual: 1 };
       }
-      return null; // No manifest here: the non-JS/static-page path handles it.
+      return null; // not a workspace — fall through to the normal HTML plan
     }
     // Apps already wired answer a re-run here: nothing to do at the root, which is pinned to none.
     const wired = apps.filter((a) => io.exists(`${a}/${RETICLE_CONFIG_FILE}`));
