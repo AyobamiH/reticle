@@ -181,7 +181,9 @@ export function redirectToWorkspaceApp(
     !rootHasPage &&
     devScriptBody(pkg) === undefined;
   const inspectRoot = libraryRoot || toolWorkspace;
-  if (here.framework !== Framework.HTML && !inspectRoot) return null;
+  if (here.framework !== Framework.HTML && !inspectRoot) {
+    return null;
+  }
 
   // A root that an earlier `--app` run (or a run inside the app) already pointed at one app has
   // answered the question discovery would ask. Ignoring it made every re-run at the root refuse
