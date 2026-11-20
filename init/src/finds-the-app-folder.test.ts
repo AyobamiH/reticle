@@ -45,8 +45,10 @@ describe('init finds the app below where it was run', () => {
       'services/api/main.go': 'package main',
       'clients/web/shop/package.json': VITE_APP,
       'clients/web/shop/vite.config.ts': 'export default {}',
+      'clients/web/shop/index.html': '<main>Shop</main>',
       'clients/web/admin/package.json': VITE_APP,
       'clients/web/admin/vite.config.ts': 'export default {}',
+      'clients/web/admin/index.html': '<main>Admin</main>',
     });
     const outcomes: unknown[] = [];
     const result = runInit(OPTS, {
@@ -82,6 +84,7 @@ describe('init finds the app below where it was run', () => {
     const home = memoryIo({
       'code/shop/package.json': VITE_APP,
       'code/shop/vite.config.ts': 'export default {}',
+      'code/shop/index.html': '<main>Shop</main>',
     });
     const io = { ...home, cwd: () => '/home/u', homeDir: () => '/home/u' };
     const result = runInit({ ...OPTS, cwd: '/home/u' }, io);
