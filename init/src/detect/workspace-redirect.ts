@@ -162,7 +162,18 @@ export function redirectToWorkspaceApp(
     );
     return { ok: false, applied: 0, manual: 1 };
   }
-  if (here.framework !== Framework.HTML) return null; // this directory IS the app
+  // A workspace root can carry Vite only to build a library or to share tooling.
+  // Without a page, Vite alone cannot prove that this directory is a web app.
+  // Frameworks which render their own HTML (Next, Nuxt, Astro, etc.) do not
+  // need a root index.html; keep their normal direct-init path.
+  const rootHasPage =
+    io.exists(STATIC_PAGE) || io.exists('public/index.html') || io.exists('src/index.html');
+  if (
+    here.framework !== Framework.HTML &&
+    (here.framework !== Framework.VITE || rootHasPage)
+  ) {
+    return null;
+  }
 
   // A root that an earlier `--app` run (or a run inside the app) already pointed at one app has
   // answered the question discovery would ask. Ignoring it made every re-run at the root refuse
@@ -211,7 +222,19 @@ export function redirectToWorkspaceApp(
   }
   const target = chosen.app ?? (1 === apps.length ? apps[0] : undefined);
   if (target === undefined) {
-    if (0 === apps.length) return null; // not a workspace — fall through to the normal HTML plan
+    if (0 === apps.length) {
+      if (io.exists(PACKAGE_JSON) && !rootHasPage) {
+        // A library or API package is not an app just because it has a
+        // package.json, a Vite config, or a dev script. Refuse before plan/apply.
+        io.print(
+          'No web app could be verified in this directory or below it. Nothing was changed. ' +
+            'Run `reticle init --app <dir>` for the web app, or `reticle init --app .` ' +
+            'if this directory intentionally serves a custom HTML page.',
+        );
+        return { ok: false, applied: 0, manual: 1 };
+      }
+      return null; // No manifest here: the non-JS/static-page path handles it.
+    }
     // Apps already wired answer a re-run here: nothing to do at the root, which is pinned to none.
     const wired = apps.filter((a) => io.exists(`${a}/${RETICLE_CONFIG_FILE}`));
     io.print(0 === wired.length ? AMBIGUOUS_HEADER : `${ALREADY_WIRED} ${wired.join(', ')}.`);
