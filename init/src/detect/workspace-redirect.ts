@@ -168,10 +168,7 @@ export function redirectToWorkspaceApp(
   // need a root index.html; keep their normal direct-init path.
   const rootHasPage =
     io.exists(STATIC_PAGE) || io.exists('public/index.html') || io.exists('src/index.html');
-  if (
-    here.framework !== Framework.HTML &&
-    (here.framework !== Framework.VITE || rootHasPage)
-  ) {
+  if (here.framework !== Framework.HTML && (here.framework !== Framework.VITE || rootHasPage)) {
     return null;
   }
 
@@ -223,9 +220,7 @@ export function redirectToWorkspaceApp(
     // A Python or other non-JS repository may contain a JS build tool. That
     // tool is not the missing web frontend. Name what was found and refuse
     // before the no-package fallback writes root config or pairing files.
-    const packages = workspacePackageDirs(io).filter((dir) =>
-      io.exists(`${dir}/${PACKAGE_JSON}`),
-    );
+    const packages = workspacePackageDirs(io).filter((dir) => io.exists(`${dir}/${PACKAGE_JSON}`));
     if (0 < packages.length) {
       io.print('No web app verified below this directory. JavaScript package(s) found:');
       printAppCommands(io, packages);
