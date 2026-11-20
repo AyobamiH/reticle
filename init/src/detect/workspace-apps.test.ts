@@ -74,9 +74,8 @@ describe('where a workspace keeps its packages', () => {
  * a Rails-style app with a JS front end — and in a monorepo missing it means init never redirects,
  * wires the ROOT, and reports ✓ for files nothing compiles.
  *
- * The honest signal is the one setup/reticle.mjs used: the app somebody is working in is the app
- * with a dev script. A monorepo root has none by design, which is what keeps this from matching
- * everything.
+ * A dev script alone can start an API, library watcher or web server. A separate web-page
+ * signal is required so init does not silently instrument a tool package.
  */
 describe('an app is a directory that can be served', () => {
   const repo = (files: Record<string, string>) => ({
@@ -85,7 +84,7 @@ describe('an app is a directory that can be served', () => {
     listDirs: (p: string) => ('apps' === p ? ['docs', 'web'] : []),
   });
 
-  it('finds an app whose only signal is a dev script', () => {
+  it('finds a web app with a dev script and its own page', () => {
     const apps = findWorkspaceApps(
       repo({
         'package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
@@ -95,6 +94,7 @@ describe('an app is a directory that can be served', () => {
           name: 'web',
           scripts: { dev: 'node server.js' },
         }),
+        'apps/web/index.html': '<main>Web app</main>',
       }),
     );
     expect(apps).toEqual(['apps/web']);
@@ -110,6 +110,7 @@ describe('an app is a directory that can be served', () => {
           name: 'web',
           scripts: { dev: 'node server.js' },
         }),
+        'apps/web/index.html': '<main>Web app</main>',
       }),
     );
     expect(apps).toEqual(['apps/web']);
@@ -121,19 +122,21 @@ describe('an app is a directory that can be served', () => {
         repo({
           'package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
           'apps/web/package.json': JSON.stringify({ name: 'web', scripts: { [script]: 'node .' } }),
+          'apps/web/index.html': '<main>Web app</main>',
         }),
       );
       expect(apps).toEqual(['apps/web']);
     }
   });
 
-  // Unchanged: a bundler config is still enough on its own, for an app whose scripts are elsewhere.
-  it('still finds one by its bundler config alone', () => {
+  // Config identifies the build tool; the page proves what the build serves.
+  it('still finds a web app with a bundler config and its own page', () => {
     const apps = findWorkspaceApps(
       repo({
         'package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
         'apps/web/package.json': JSON.stringify({ name: 'web' }),
         'apps/web/vite.config.ts': 'x',
+        'apps/web/index.html': '<main>Web app</main>',
       }),
     );
     expect(apps).toEqual(['apps/web']);
@@ -148,6 +151,7 @@ describe('an app is a directory that can be served', () => {
         devDependencies: { 'vite-plus': '1.5.0' },
         scripts: { dev: 'vp dev' },
       }),
+      'apps/web/index.html': '<main>Vite+ app</main>',
     };
     const io = { exists: (p: string) => p in files, readFile: (p: string) => files[p] ?? null };
     expect(isWebApp('apps/web', io)).toBe(true);
