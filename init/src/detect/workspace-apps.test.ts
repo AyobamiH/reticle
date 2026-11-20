@@ -175,7 +175,7 @@ describe('web app selection must not treat build tooling as a page', () => {
     expect(findAppsBelow(io)).toEqual([]);
   });
 
-  it('does not choose a backend that merely has a dev script as a web app', () => {
+  it('keeps the legacy server-rendered fallback without calling it a web UI', () => {
     const io = memoryIo({
       'package.json': JSON.stringify({ name: 'backend', workspaces: ['tools/*'] }),
       'tools/api/package.json': JSON.stringify({
@@ -184,7 +184,10 @@ describe('web app selection must not treat build tooling as a page', () => {
         dependencies: { express: '^5' },
       }),
     });
-    expect(findWorkspaceApps(io)).toEqual([]);
+    expect(isWebApp('tools/api', io)).toBe(false);
+    // A server-rendered app may have no index.html: keep the historical fallback,
+    // but do not let it compete with an actual UI elsewhere in the workspace.
+    expect(findWorkspaceApps(io)).toEqual(['tools/api']);
     expect(findAppsBelow(io)).toEqual([]);
   });
 
